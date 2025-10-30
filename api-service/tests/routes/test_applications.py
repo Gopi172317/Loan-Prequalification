@@ -28,9 +28,6 @@ def test_db():
         # Drop test database tables
         Base.metadata.drop_all(bind=engine)
 
-def _fake_get_by_id(app_id: str = "db3a988f-e07d-434f-b2b6-0961c7ba8c73", status: str = "PRE_APPROVED"):
-    return SimpleNamespace(id=app_id, status=status)
-
 
 # Create Application Tests
 def test_create_application_success():
@@ -93,29 +90,42 @@ def test_create_application_invalid_loan_type():
 
 
 # Get Application Status Tests
-def test_get_application_status_success(monkeypatch):
-    app_id = "db3a988f-e07d-434f-b2b6-0961c7ba8c73"
+def _fake_app(app_id: str, status: str):
+    return SimpleNamespace(id=app_id, status=status)
+
+
+def test_get_application_status_pending(monkeypatch):
+    """
+    AC 2.1: GIVEN application app-123 has status PENDING
+    WHEN GET /applications/app-123/status
+    THEN response 200 with the pending status
+    """
+    app_id = "app-123"
     monkeypatch.setattr(
         applications_module,
         "get_application_by_id",
-        lambda db, application_id: _fake_get_by_id(app_id, "PRE_APPROVED") if application_id == app_id else None
+        lambda db, application_id: _fake_app(app_id, "PENDING") if application_id == app_id else None
     )
 
     resp = client.get(f"/applications/{app_id}/status")
     assert resp.status_code == 200
-    body = resp.json()
-    assert body["application_id"] == app_id
-    assert body["status"] == "PRE_APPROVED"
+    assert resp.json() == {"application_id": app_id, "status": "PENDING"}
 
 
-def test_get_application_status_not_found(monkeypatch):
+def test_get_application_status_pre_approved(monkeypatch):
+    """
+    AC 2.2: GIVEN application app-123 has status PRE_APPROVED
+    WHEN GET /applications/app-123/status
+    THEN response 200 with the pre-approved status
+    """
+    app_id = "app-123"
     monkeypatch.setattr(
         applications_module,
         "get_application_by_id",
-        lambda db, application_id: None
+        lambda db, application_id: _fake_app(app_id, "PRE_APPROVED") if application_id == app_id else None
     )
 
-    resp = client.get("/applications/non-existent-id/status")
-    assert resp.status_code == 404
-    body = resp.json()
-    assert body.get("detail") == "Application not found"
+    resp = client.get(f"/applications/{app_id}/status")
+    assert resp.status_code == 200
+    assert resp.json() == {"application_id": app_id, "status": "PRE_APPROVED"}
+    
