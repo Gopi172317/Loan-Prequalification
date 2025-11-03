@@ -1,0 +1,55 @@
+# --- Pre-Commit Hooks Configuration ---
+
+# Global settings for the hooks environment
+# FIX: The previous version 'python3.10' caused a 'failed to find interpreter' error.
+# We are changing this to 'python3.14' as suggested by the virtual environment path
+# in your error message. If 'python3.14' is not found, try 'default'.
+default_language_version:
+    python: python3.14
+# Paths to ignore when running hooks (e.g., auto-generated files)
+exclude: "^migrations/|settings.py$"
+# If one hook fails, stop immediately
+fail_fast: true
+
+repos:
+  # 1. Black - The Code Formatter
+  # Black enforces consistent code style, which is often an *autofix* hook.
+  - repo: https://github.com/psf/black
+    # Use a specific, stable revision (version)
+    rev: 24.4.2
+    hooks:
+      - id: black
+        name: "Format: Black (Autofix)"
+        # Note: Black is set up to run against the whole file,
+        # and if it changes the file, the commit is rejected.
+        # The user must 'git add' the changes and try committing again.
+
+  # 2. Ruff - The Linter and Import Sorter
+  # Ruff is faster and can replace many legacy tools (like flake8, isort, pydocstyle).
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Use a specific, stable revision (version)
+    rev: v0.4.8
+    hooks:
+      # Hook A: Linter Check
+      # This runs all linting rules defined in your pyproject.toml
+      - id: ruff
+        name: "Lint: Ruff Check"
+
+      # Hook B: Import Sorting and Formatting
+      # Ruff's second hook can handle import sorting and light auto-formatting
+      - id: ruff-format
+        name: "Format: Ruff Auto-Fix"
+
+  # 3. Utility Hooks (Recommended)
+  # These hooks check for common file mistakes that aren't specific to Python.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        name: "Clean: Trim trailing whitespace"
+      - id: end-of-file-fixer
+        name: "Clean: Ensure files end with a newline"
+      - id: check-yaml
+        name: "Check: Validate YAML files"
+      - id: check-json
+        name: "Check: Validate JSON files"

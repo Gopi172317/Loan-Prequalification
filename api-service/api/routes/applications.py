@@ -15,7 +15,9 @@ async def applications_testing():
 
 
 @app.post("/applications", status_code=202, response_model=ApplicationResponse)
-async def create_application(payload: ApplicationRequest, db: Session = Depends(get_db)):
+async def create_application(
+    payload: ApplicationRequest, db: Session = Depends(get_db)
+):
     db_app = db_create_application(db, payload)
     print(f"Created application with ID: {db_app.id}")
 
@@ -28,7 +30,7 @@ async def create_application(payload: ApplicationRequest, db: Session = Depends(
             "applicant_name": db_app.applicant_name,
             "monthly_income_inr": int(db_app.monthly_income_inr),
             "loan_amount_inr": int(db_app.loan_amount_inr),
-            "loan_type": db_app.loan_type
+            "loan_type": db_app.loan_type,
         }
         publish_application(message)
     except Exception:
