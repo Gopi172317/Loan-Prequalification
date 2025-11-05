@@ -46,3 +46,7 @@ async def get_application_status(application_id: str, db: Session = Depends(get_
     if not db_app:
         raise HTTPException(status_code=404, detail="Application not found")
     return ApplicationResponse(application_id=str(db_app.id), status=db_app.status)
+
+
+
+isudhfidskjno
