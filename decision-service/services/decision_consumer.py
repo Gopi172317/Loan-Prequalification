@@ -10,14 +10,17 @@ from sqlalchemy.ext.automap import automap_base
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class DecisionConsumer:
     def __init__(self, bootstrap_servers: str, input_topic: str, database_url: str):
         self.input_topic = input_topic
-        self.consumer = Consumer({
-            'bootstrap.servers': bootstrap_servers,
-            'group.id': 'decision_service_group',
-            'auto.offset.reset': 'earliest'
-        })
+        self.consumer = Consumer(
+            {
+                "bootstrap.servers": bootstrap_servers,
+                "group.id": "decision_service_group",
+                "auto.offset.reset": "earliest",
+            }
+        )
 
         # SQLAlchemy engine + ORM session factory
         self.engine = create_engine(database_url, echo=False)
@@ -31,11 +34,15 @@ class DecisionConsumer:
         try:
             self.Application = getattr(Base.classes, "applications")
         except Exception:
-            logger.warning("Could not automap 'applications' table - ensure DB has the table. "
-                           "DecisionConsumer will still run but DB calls may fail.")
+            logger.warning(
+                "Could not automap 'applications' table - ensure DB has the table. "
+                "DecisionConsumer will still run but DB calls may fail."
+            )
             self.Application = None
 
-    def _decide_status(self, cibil_score: int, monthly_income: float, loan_amount: float) -> str:
+    def _decide_status(
+        self, cibil_score: int, monthly_income: float, loan_amount: float
+    ) -> str:
         """
         Decision rules:
         - If cibil_score < 650 -> REJECTED
@@ -48,7 +55,9 @@ class DecisionConsumer:
             return "PRE_APPROVED"
         return "MANUAL_REVIEW"
 
-    def _fetch_app_financials(self, application_id: str) -> Optional[Tuple[float, float]]:
+    def _fetch_app_financials(
+        self, application_id: str
+    ) -> Optional[Tuple[float, float]]:
         """
         Fetch monthly_income_inr and loan_amount_inr from applications table via ORM.
         Returns tuple(monthly_income, loan_amount) or None if not found / mapping unavailable.
@@ -59,14 +68,26 @@ class DecisionConsumer:
 
         try:
             with self.SessionLocal() as session:
-                app = session.query(self.Application).filter_by(id=application_id).first()
+                app = (
+                    session.query(self.Application).filter_by(id=application_id).first()
+                )
                 if app is None:
                     return None
-                monthly_income = float(app.monthly_income_inr) if getattr(app, "monthly_income_inr", None) is not None else 0.0
-                loan_amount = float(app.loan_amount_inr) if getattr(app, "loan_amount_inr", None) is not None else 0.0
+                monthly_income = (
+                    float(app.monthly_income_inr)
+                    if getattr(app, "monthly_income_inr", None) is not None
+                    else 0.0
+                )
+                loan_amount = (
+                    float(app.loan_amount_inr)
+                    if getattr(app, "loan_amount_inr", None) is not None
+                    else 0.0
+                )
                 return monthly_income, loan_amount
         except Exception as exc:
-            logger.exception("Error fetching financials for %s: %s", application_id, exc)
+            logger.exception(
+                "Error fetching financials for %s: %s", application_id, exc
+            )
             return None
 
     def _update_application(self, application_id: str, status: str, cibil_score: int):
@@ -74,14 +95,21 @@ class DecisionConsumer:
         Update the applications table row with new status and cibil_score using ORM.
         """
         if self.Application is None:
-            logger.error("ORM mapping for applications not available - cannot update DB")
+            logger.error(
+                "ORM mapping for applications not available - cannot update DB"
+            )
             return
 
         try:
             with self.SessionLocal() as session:
-                app = session.query(self.Application).filter_by(id=application_id).first()
+                app = (
+                    session.query(self.Application).filter_by(id=application_id).first()
+                )
                 if app is None:
-                    logger.error("Attempted to update non-existent application %s", application_id)
+                    logger.error(
+                        "Attempted to update non-existent application %s",
+                        application_id,
+                    )
                     return
                 setattr(app, "status", status)
                 setattr(app, "cibil_score", int(cibil_score))
@@ -128,17 +156,24 @@ class DecisionConsumer:
 
                 application_id = payload.get("application_id")
                 if not application_id:
-                    logger.error("Received credit report without application_id; skipping")
+                    logger.error(
+                        "Received credit report without application_id; skipping"
+                    )
                     continue
 
                 cibil_raw = payload.get("cibil_score")
                 if cibil_raw is None:
-                    logger.error("Received credit report without cibil_score for %s; skipping", application_id)
+                    logger.error(
+                        "Received credit report without cibil_score for %s; skipping",
+                        application_id,
+                    )
                     continue
                 try:
                     cibil_score = int(cibil_raw)
                 except Exception:
-                    logger.exception("Invalid cibil_score for %s: %s", application_id, cibil_raw)
+                    logger.exception(
+                        "Invalid cibil_score for %s: %s", application_id, cibil_raw
+                    )
                     continue
 
                 monthly_income = payload.get("monthly_income_inr")
@@ -147,7 +182,10 @@ class DecisionConsumer:
                 if monthly_income is None or loan_amount is None:
                     fin = self._fetch_app_financials(application_id)
                     if fin is None:
-                        logger.error("Application %s not found or missing financials; skipping", application_id)
+                        logger.error(
+                            "Application %s not found or missing financials; skipping",
+                            application_id,
+                        )
                         continue
                     monthly_income, loan_amount = fin
 
@@ -155,11 +193,21 @@ class DecisionConsumer:
                     monthly_income = float(monthly_income)
                     loan_amount = float(loan_amount)
                 except Exception:
-                    logger.exception("Invalid financial values for %s: income=%s loan=%s", application_id, monthly_income, loan_amount)
+                    logger.exception(
+                        "Invalid financial values for %s: income=%s loan=%s",
+                        application_id,
+                        monthly_income,
+                        loan_amount,
+                    )
                     continue
 
                 status = self._decide_status(cibil_score, monthly_income, loan_amount)
-                logger.info("Decision for %s: status=%s, cibil_score=%s", application_id, status, cibil_score)
+                logger.info(
+                    "Decision for %s: status=%s, cibil_score=%s",
+                    application_id,
+                    status,
+                    cibil_score,
+                )
 
                 self._update_application(application_id, status, cibil_score)
                 logger.info("Updated application %s in DB", application_id)

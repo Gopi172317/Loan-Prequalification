@@ -36,7 +36,8 @@ platformdirs==4.5.0
 pluggy==1.6.0
 poetry==2.2.1
 poetry-core==2.2.1
-psycopg2==2.9.11
+# replace in requirements.txt
+psycopg2-binary
 pycparser==2.23
 pydantic==2.12.3
 pydantic_core==2.41.4
